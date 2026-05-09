@@ -15,7 +15,6 @@ import 'search_page.dart';
 import 'profile_page.dart';
 import '../data/repositories/feed_repository.dart';
 import '../data/repositories/upload_repository.dart';
-import '../data/models/post_model.dart';
 
 // ─── ROOT APP ──────────────────────────────────────────
 class LumApp extends StatelessWidget {
