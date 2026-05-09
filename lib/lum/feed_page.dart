@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'theme.dart';
 import 'widgets.dart';
@@ -145,6 +146,16 @@ class _UploadSourceSheet extends StatelessWidget {
     }
   }
 
+  void _openStockGallery(BuildContext context) {
+    Navigator.pop(context); // close the sheet
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _StockGalleryPage(onPicked: onPicked),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
@@ -159,7 +170,7 @@ class _UploadSourceSheet extends StatelessWidget {
         decoration: BoxDecoration(color: Lum.glassBorder, borderRadius: BorderRadius.circular(2)),
       ),
       const Text('Create Post', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
-      const SizedBox(height: 16),
+      const SizedBox(height: 20),
       Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         _SourceOption(
           icon: Icons.camera_alt_rounded,
@@ -172,6 +183,12 @@ class _UploadSourceSheet extends StatelessWidget {
           label: 'Gallery',
           gradient: Lum.gradVioletAqua,
           onTap: () => _pick(context, ImageSource.gallery),
+        ),
+        _SourceOption(
+          icon: Icons.collections_rounded,
+          label: 'Stock',
+          gradient: Lum.gradRoseAmber,
+          onTap: () => _openStockGallery(context),
         ),
       ]),
       const SizedBox(height: 8),
@@ -201,6 +218,121 @@ class _SourceOption extends StatelessWidget {
       const SizedBox(height: 8),
       Text(label, style: const TextStyle(fontSize: 12, color: Lum.muted)),
     ]),
+  );
+}
+
+// ─── STOCK GALLERY PAGE (input_images) ─────────────────
+class _StockGalleryPage extends StatefulWidget {
+  final ValueChanged<File> onPicked;
+  const _StockGalleryPage({required this.onPicked});
+  @override State<_StockGalleryPage> createState() => _StockGalleryPageState();
+}
+
+class _StockGalleryPageState extends State<_StockGalleryPage> {
+  static const _stockImages = [
+    '02e74545e43e9ff055b27f485fcf8e97.jpg',
+    '0962b8afd65bb3b5fb9b8fd119260c63.jpg',
+    'cbf9a67349673a220c78f5eed97b7bc4.jpg',
+    'cfffe84e00295169068b850ae6b4e3e1.jpg',
+    'fd474d7975bd7adc7cfe5bba472e4360.jpg',
+    'photo-1575936123452-b67c3203c357.jpeg',
+  ];
+
+  bool _saving = false;
+
+  Future<void> _selectImage(String assetName) async {
+    setState(() => _saving = true);
+    try {
+      // Load asset bytes and write to a temp file for upload
+      final byteData = await DefaultAssetBundle.of(context).load('assets/input_images/$assetName');
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/stock_$assetName');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      if (!mounted) return;
+      Navigator.pop(context); // close gallery
+      widget.onPicked(file);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Lum.bg,
+    appBar: AppBar(
+      backgroundColor: Lum.surface,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: const Text('Stock Images',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+      centerTitle: true,
+      elevation: 0,
+    ),
+    body: _saving
+      ? const Center(child: CircularProgressIndicator(color: Lum.violet))
+      : GridView.builder(
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 0.85,
+          ),
+          itemCount: _stockImages.length,
+          itemBuilder: (_, i) => _StockImageCard(
+            assetName: _stockImages[i],
+            onTap: () => _selectImage(_stockImages[i]),
+          ),
+        ),
+  );
+}
+
+class _StockImageCard extends StatelessWidget {
+  final String assetName;
+  final VoidCallback onTap;
+  const _StockImageCard({required this.assetName, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Lum.glassBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(fit: StackFit.expand, children: [
+        Image.asset(
+          'assets/input_images/$assetName',
+          fit: BoxFit.cover,
+        ),
+        // Bottom gradient overlay
+        Positioned(
+          bottom: 0, left: 0, right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                colors: [Color(0xCC000000), Colors.transparent],
+              ),
+            ),
+            child: Row(children: [
+              const Icon(Icons.add_circle_outline_rounded, color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+              const Text('Use', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+            ]),
+          ),
+        ),
+      ]),
+    ),
   );
 }
 
