@@ -182,6 +182,42 @@ All design tokens live in `lib/lum/theme.dart`:
 
 ---
 
+## Architecture Notes
+
+### Riverpod State Management
+
+Three providers cover the entire app state:
+
+| Provider | Type | Responsibility |
+|---|---|---|
+| `feedProvider` | `AsyncNotifierProvider` | Paginated post list, infinite scroll, Supabase Realtime `UPDATE` listener for live like/comment counts |
+| `likeProvider` | `StateNotifierProvider.family` | Per-post like state keyed by `postId`; optimistic toggle with 600 ms debounce, connectivity check on flush, and automatic rollback on failure |
+| `commentsProvider` | `AutoDisposeFamilyAsyncNotifier` | Per-post comments loaded on demand; Supabase Realtime `INSERT` filter streams new comments in real time; auto-disposes when the bottom sheet closes |
+
+`likeErrorProvider` (`StateProvider<String?>`) holds transient error messages (e.g. "No internet — like reverted") consumed by the feed UI and reset after display.
+
+The optimistic like flow: `LikeNotifier.toggle()` flips local state and patches the post in `feedProvider` immediately, then schedules a debounced `_flush()`. On flush it checks connectivity — if offline it calls `_revert()` which undoes both the local state and the feed patch; if online it calls `FeedRepository.toggleLike()` and reverts only on an exception. `FeedNotifier._subscribeRealtime()` also receives the authoritative `like_count` from Postgres `UPDATE` events, so counts self-correct without a full refresh.
+
+### RepaintBoundary
+
+`RepaintBoundary` is placed at two levels:
+
+- **Feed list** — each `PostCard` (Supabase feed, `lib/ui/feed/post_card.dart:16`) and each `PhotoCard` in the lüm masonry columns (`lib/lum/feed_page.dart:829`) is wrapped individually. This isolates the raster layer per card, so a like-button rebuild on one card does not invalidate the GPU texture of its neighbours.
+- **Background blobs** — the aurora animated blobs (`lib/lum/widgets.dart:208`) and `LumLoadingDots` (`lib/lum/widgets.dart:248`) are wrapped so their continuous animation ticks do not trigger repaints on the feed content above them.
+
+**Verification:** Flutter DevTools → *Performance* → *Highlight Repaints* was enabled while scrolling the feed and toggling likes. Without boundaries the entire list column flashed on every like tap. With boundaries only the tapped card's region flashed; all other cards remained static between their own state changes.
+
+### memCacheWidth
+
+`CachedNetworkImage` accepts `memCacheWidth` to cap the decoded bitmap stored in the Flutter image cache:
+
+- **Feed thumbnails** (`lib/ui/feed/post_card.dart:32`) — `memCacheWidth: 600`. Cards render at ~412 logical pixels on a typical 1080p device (≈2.6× DPR), so 600 physical pixels is sufficient without over-allocating memory for the original Unsplash resolution (often 3000+ px wide).
+- **Detail view** (`lib/ui/detail/detail_screen.dart:107`) — `memCacheWidth: 1080`. The full-screen hero image fills the device width at native resolution, so the higher cap avoids visible softness.
+
+**Verification:** Flutter DevTools → *Memory* tab was monitored while scrolling through 30 posts. Without `memCacheWidth` the image cache grew to ~180 MB before GC pressure triggered eviction. With the hint set, the cache stabilised under 60 MB because each decoded bitmap is stored at feed-card size rather than source size, reducing per-image memory by ~25×.
+
+---
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
