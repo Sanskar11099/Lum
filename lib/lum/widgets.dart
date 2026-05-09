@@ -252,6 +252,9 @@ class NetImg extends StatelessWidget {
         width: width, height: height,
         fit: fit,
         fadeInDuration: const Duration(milliseconds: 200),
+        // Use stale cache when offline — don't re-download if cached
+        useOldImageOnUrlChange: true,
+        cacheKey: url,
         placeholder: (_, __) => Container(
           width: width, height: height,
           color: const Color(0xFF1A1A2E),

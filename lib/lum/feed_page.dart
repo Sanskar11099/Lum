@@ -457,6 +457,7 @@ class FeedPage extends StatefulWidget {
 class _FeedPageState extends State<FeedPage> {
   final _posts      = <PostData>[];
   bool  _loading    = false;
+  bool  _isOffline  = false;
   int   _page       = 0;
   bool  _hasMore    = true;
   String _activeTag = 'All';
@@ -483,6 +484,7 @@ class _FeedPageState extends State<FeedPage> {
       _page = 0;
       _hasMore = true;
       _loading = false;
+      _isOffline = false;
     });
     _loadMore();
   }
@@ -514,7 +516,10 @@ class _FeedPageState extends State<FeedPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _isOffline = true;
+      });
       debugPrint('LumFeed: Error loading posts: $e');
     }
   }
@@ -559,6 +564,30 @@ class _FeedPageState extends State<FeedPage> {
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(child: _FeedHeader(onSearchTap: () {})),
+        if (_isOffline)
+          SliverToBoxAdapter(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Lum.amber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Lum.amber.withValues(alpha: 0.3)),
+              ),
+              child: Row(children: [
+                Icon(Icons.wifi_off_rounded, color: Lum.amber, size: 16),
+                const SizedBox(width: 8),
+                const Text('Offline — showing cached feed',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Lum.amber)),
+                const Spacer(),
+                GestureDetector(
+                  onTap: refreshFeed,
+                  child: const Text('Retry',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Lum.amber)),
+                ),
+              ]),
+            ),
+          ),
         SliverToBoxAdapter(child: _Stories(onTap: _openStory)),
         SliverToBoxAdapter(child: _Divider()),
         SliverToBoxAdapter(child: _CategoryTabs(active: _activeTag, onSelect: (t) => setState(() => _activeTag = t))),
